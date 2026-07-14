@@ -98,8 +98,9 @@ AdoptSignal is part of a small family of open, local-first marketing-analytics a
 - **[WorthSignal](https://github.com/UlrikErlingsen/customer-value-analytics)** — customer value: RFM targeting, CLV, retention, and marketing ROI.
 - **[SegmentSignal](https://github.com/UlrikErlingsen/customer-segmentation)** — multi-variable B2C customer segmentation with stability checks.
 - **[ChoiceSignal](https://github.com/UlrikErlingsen/conjoint-analysis)** — conjoint analysis: which product features customers value, and preference shares.
+- **[PositionSignal](https://github.com/UlrikErlingsen/brand-positioning)** — perceptual mapping for brand positioning: where brands sit relative to competitors, from brand-attribute ratings.
 
-Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *when* the market adopts it (AdoptSignal), and *what a customer is worth* once acquired (WorthSignal). A ChoiceSignal preference share times a defensible target population is one disciplined way to set the market potential used here.
+Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), and *what a customer is worth* once acquired (WorthSignal). A ChoiceSignal preference share times a defensible target population is one disciplined way to set the market potential used here.
 
 ## Privacy and responsible use
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adoption-forecasting"
-version = "0.1.0"
+version = "1.0.0"
 description = "AdoptSignal: open, local-first new-product adoption forecasting (Bass diffusion) for marketers"
 readme = "README.md"
 requires-python = ">=3.10"

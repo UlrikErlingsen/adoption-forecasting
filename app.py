@@ -323,7 +323,8 @@ def welcome_page() -> None:
         st.write(
             "AdoptSignal answers *when* customers will adopt. Its siblings answer the other launch questions: "
             "ChoiceSignal measures *what* customers value in a design, SegmentSignal finds *who* the distinct "
-            "groups are, and WorthSignal estimates *what a customer is worth* once acquired. A preference share "
+            "groups are, PositionSignal maps *how the market perceives* competing brands, and WorthSignal "
+            "estimates *what a customer is worth* once acquired. A preference share "
             "from ChoiceSignal times a defensible target population is one disciplined way to set the market "
             "potential used here."
         )
