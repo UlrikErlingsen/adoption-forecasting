@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AdoptSignal mark">
+  <rect width="128" height="128" rx="30" fill="#173C3A"/>
+  <path d="M22 100C50 100 44 32 106 30" fill="none" stroke="#83D2B4" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="34" cy="97" r="8" fill="#F2C66D"/>
+  <circle cx="64" cy="63" r="10" fill="#F8F5ED"/>
+  <circle cx="98" cy="31" r="12" fill="#D95B40"/>
+</svg>
