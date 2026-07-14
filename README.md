@@ -99,8 +99,10 @@ AdoptSignal is part of a small family of open, local-first marketing-analytics a
 - **[SegmentSignal](https://github.com/UlrikErlingsen/customer-segmentation)** — multi-variable B2C customer segmentation with stability checks.
 - **[ChoiceSignal](https://github.com/UlrikErlingsen/conjoint-analysis)** — conjoint analysis: which product features customers value, and preference shares.
 - **[PositionSignal](https://github.com/UlrikErlingsen/brand-positioning)** — perceptual mapping for brand positioning: where brands sit relative to competitors, from brand-attribute ratings.
+- **[AllocSignal](https://github.com/UlrikErlingsen/marketing-mix-allocation)** — marketing response and budget allocation: saturating response curves, constrained optimization, and a panel-evidence workspace.
+- **[DriverSignal](https://github.com/UlrikErlingsen/survey-driver-analysis)** — survey driver analysis: scale reliability, robust standardized drivers, and correlated-predictor importance for satisfaction and NPS.
 
-Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), and *what a customer is worth* once acquired (WorthSignal).
+Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), *what a customer is worth* once acquired (WorthSignal), *what drives their satisfaction* (DriverSignal), and *where the next budget should go* (AllocSignal).
 
 ## Privacy and responsible use
 
