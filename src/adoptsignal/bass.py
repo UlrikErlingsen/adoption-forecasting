@@ -47,6 +47,8 @@ class BassFit:
     r_squared: float
     fitted: pd.DataFrame
     peaked: bool
+    standard_errors: dict[str, float] | None = None
+    parameter_correlations: dict[str, float] | None = None
     warnings: list[str] = field(default_factory=list)
 
 
@@ -68,7 +70,9 @@ def bass_curve(p: float, q: float, m: float, periods: int, start_period: int = 1
     rows = []
     for step in range(int(periods)):
         adopters = (p + q * cumulative / m) * (m - cumulative)
-        adopters = max(adopters, 0.0)
+        # With a large p+q the discrete step can overshoot the market
+        # potential; cap it so cumulative adoption never exceeds m.
+        adopters = min(max(adopters, 0.0), m - cumulative)
         cumulative += adopters
         rows.append(
             {
@@ -105,8 +109,9 @@ def _cumulative_bass(t: np.ndarray, p: float, q: float, m: float) -> np.ndarray:
 
 def prepare_adoption_series(
     frame: pd.DataFrame, period_column: str, adopters_column: str
-) -> pd.DataFrame:
-    """Validate and order an adoption history (one row per period, new adopters per period)."""
+) -> tuple[pd.DataFrame, list[str]]:
+    """Validate and order an adoption history; returns the series and honest warnings."""
+    warnings: list[str] = []
     for column in (period_column, adopters_column):
         if column not in frame.columns:
             raise DataProblem(f"The column “{column}” is not in the file.")
@@ -114,8 +119,18 @@ def prepare_adoption_series(
         raise DataProblem("The period and adopters columns must be different.")
     series = frame[[period_column, adopters_column]].copy()
     series.columns = ["period", "new_adopters"]
+    if series["period"].astype(str).str.strip().duplicated().any():
+        raise DataProblem(
+            "Some period labels appear more than once. Each period must be one row; aggregate duplicates first."
+        )
     series["new_adopters"] = pd.to_numeric(series["new_adopters"], errors="coerce")
+    dropped = int(series["new_adopters"].isna().sum())
     series = series.dropna(subset=["new_adopters"])
+    if dropped:
+        warnings.append(
+            f"{dropped:,} rows without a numeric adoption count were dropped — if these were real periods with "
+            "missing data, the model's equal-period assumption is violated."
+        )
     if len(series) < MINIMUM_FIT_PERIODS:
         raise DataProblem(f"At least {MINIMUM_FIT_PERIODS} periods with numeric adoption counts are required.")
     if (series["new_adopters"] < 0).any():
@@ -125,10 +140,16 @@ def prepare_adoption_series(
     order = pd.to_numeric(series["period"], errors="coerce")
     if order.notna().all():
         series = series.assign(_order=order).sort_values("_order").drop(columns="_order")
+        spacing = np.diff(order.sort_values().to_numpy(dtype=float))
+        if len(spacing) and not np.allclose(spacing, spacing[0], rtol=1e-6, atol=1e-9):
+            warnings.append(
+                "The numeric periods are not equally spaced. The Bass model assumes equal periods; "
+                "irregular spacing bends the fitted curve."
+            )
     series = series.reset_index(drop=True)
     if len(series) > MAX_PERIODS:
         raise DataProblem(f"This release supports up to {MAX_PERIODS} periods of history.")
-    return series
+    return series, warnings
 
 
 def _ols_start(adopters: np.ndarray) -> tuple[float, float, float] | None:
@@ -168,10 +189,11 @@ def fit_bass(series: pd.DataFrame) -> BassFit:
     cumulative_observed = np.cumsum(adopters)
     method = "nls"
     warnings: list[str] = []
+    covariance = None
     try:
         bounds = ([1e-6, 0.0, total], [0.5, 1.99, total * 100])
         start_clipped = tuple(float(np.clip(value, low, high)) for value, low, high in zip(start, *bounds))
-        parameters, _ = curve_fit(
+        parameters, covariance = curve_fit(
             _cumulative_bass, time_index, cumulative_observed, p0=start_clipped, bounds=bounds, maxfev=20000
         )
         p, q, m = (float(value) for value in parameters)
@@ -191,16 +213,37 @@ def fit_bass(series: pd.DataFrame) -> BassFit:
     variance = float(((adopters - adopters.mean()) ** 2).sum())
     r_squared = 1 - float((residual**2).sum()) / variance if variance > 0 else float("nan")
 
+    # "Clearly peaked" needs more than one wobble: at least two post-peak
+    # periods whose average sits well below the peak observation.
     peak_index = int(np.argmax(adopters))
-    peaked = peak_index < len(adopters) - 1
+    post_peak = adopters[peak_index + 1 :]
+    peaked = len(post_peak) >= 2 and float(post_peak.mean()) < 0.9 * float(adopters[peak_index])
     if not peaked:
         warnings.append(
-            "The history has not clearly passed its sales peak yet. Before the peak, market potential (m) is "
-            "poorly identified and forecasts can change dramatically with one more period of data — treat this "
-            "fit as provisional and refit as new periods arrive."
+            "The history has not clearly passed its sales peak yet (a single small decline is not clear "
+            "evidence). Before the peak, market potential (m) is poorly identified and forecasts can change "
+            "dramatically with one more period of data — treat this fit as provisional and refit as new "
+            "periods arrive."
         )
     if r_squared < 0.5:
         warnings.append("The model explains less than half of the period-to-period variation; read the fit skeptically.")
+
+    standard_errors = None
+    parameter_correlations = None
+    if method == "nls" and covariance is not None and np.isfinite(covariance).all():
+        diagonal = np.sqrt(np.diag(covariance))
+        if np.isfinite(diagonal).all() and (diagonal > 0).all():
+            standard_errors = {"p": float(diagonal[0]), "q": float(diagonal[1]), "m": float(diagonal[2])}
+            with np.errstate(invalid="ignore"):
+                correlation = covariance / np.outer(diagonal, diagonal)
+            parameter_correlations = {
+                "p_q": float(correlation[0, 1]), "p_m": float(correlation[0, 2]), "q_m": float(correlation[1, 2]),
+            }
+    if standard_errors is None and method == "nls":
+        warnings.append(
+            "Parameter uncertainty could not be computed (the fit sits at a bound); read the estimates as "
+            "point values only."
+        )
 
     fitted = series.copy()
     fitted["fitted_new_adopters"] = predicted_new
@@ -208,13 +251,43 @@ def fit_bass(series: pd.DataFrame) -> BassFit:
     fitted["fitted_cumulative"] = predicted_cumulative
     return BassFit(
         p=p, q=q, m=m, method=method, r_squared=float(r_squared),
-        fitted=fitted, peaked=peaked, warnings=warnings,
+        fitted=fitted, peaked=peaked,
+        standard_errors=standard_errors, parameter_correlations=parameter_correlations,
+        warnings=warnings,
     )
 
 
 def analog_suggestion(categories: list[str]) -> tuple[float, float]:
-    """Mean p and q across chosen published analogs."""
+    """Mean p and q across chosen published analogs, clamped to usable forecasting ranges.
+
+    Some published estimates sit at extremes (hybrid corn's p is 0.000, which
+    would make the model degenerate), so suggestions are clamped to
+    p ∈ [0.001, 0.1] and q ∈ [0.05, 0.9].
+    """
     chosen = ANALOG_PARAMETERS[ANALOG_PARAMETERS["category"].isin(categories)]
     if chosen.empty:
         raise DataProblem("Choose at least one analog category.")
-    return float(chosen["p"].mean()), float(chosen["q"].mean())
+    p = float(np.clip(chosen["p"].mean(), 0.001, 0.1))
+    q = float(np.clip(chosen["q"].mean(), 0.05, 0.9))
+    return p, q
+
+
+def forecast_beyond(fit: BassFit, periods: int) -> pd.DataFrame:
+    """Forecast beyond the fitted history using the same continuous curve NLS fitted.
+
+    Mixing estimation on the continuous curve with a discrete forward recursion
+    would make the forecast disagree with the fit, so both use the closed form.
+    """
+    if periods < 1:
+        raise DataProblem("Forecast at least one further period.")
+    observed = len(fit.fitted)
+    times = np.arange(observed, observed + periods + 1, dtype=float)
+    cumulative = _cumulative_bass(times, fit.p, fit.q, fit.m)
+    new_adopters = np.diff(cumulative)
+    return pd.DataFrame(
+        {
+            "period_index": np.arange(observed + 1, observed + periods + 1),
+            "forecast_new_adopters": np.maximum(new_adopters, 0.0),
+            "forecast_cumulative": cumulative[1:],
+        }
+    )

@@ -30,8 +30,7 @@ from adoptsignal.bass import (
     analog_suggestion,
     bass_curve,
     fit_bass,
-    peak_adoptions,
-    peak_time,
+    forecast_beyond,
     prepare_adoption_series,
 )
 from adoptsignal.errors import DataProblem, friendly_message
@@ -154,6 +153,7 @@ def set_loaded(loaded: LoadedData) -> None:
     st.session_state["source_name"] = loaded.source_name
     st.session_state["active_table"] = next(iter(loaded.tables))
     st.session_state.pop("history_fit", None)
+    st.session_state.pop("history_warnings", None)
 
 
 def load_demo(filename: str) -> None:
@@ -248,7 +248,7 @@ with st.sidebar:
     if st.session_state.get("tables") and full_width(st.button, "Clear session data"):
         for key in (
             "tables", "source_name", "active_table", "upload_identity", "_uploader_had_file",
-            "plan", "history_fit",
+            "plan", "history_fit", "history_warnings",
         ):
             st.session_state.pop(key, None)
         st.session_state["upload_epoch"] = int(st.session_state.get("upload_epoch", 0)) + 1
@@ -266,6 +266,7 @@ with st.sidebar:
         if selected_table != st.session_state.get("active_table"):
             st.session_state["active_table"] = selected_table
             st.session_state.pop("history_fit", None)
+            st.session_state.pop("history_warnings", None)
         active = st.session_state["tables"][selected_table]
         st.caption(f"{st.session_state.get('source_name')} · {len(active):,} rows × {len(active.columns)} columns")
     st.markdown("### Follow the workflow")
@@ -324,9 +325,7 @@ def welcome_page() -> None:
             "AdoptSignal answers *when* customers will adopt. Its siblings answer the other launch questions: "
             "ChoiceSignal measures *what* customers value in a design, SegmentSignal finds *who* the distinct "
             "groups are, PositionSignal maps *how the market perceives* competing brands, and WorthSignal "
-            "estimates *what a customer is worth* once acquired. A preference share "
-            "from ChoiceSignal times a defensible target population is one disciplined way to set the market "
-            "potential used here."
+            "estimates *what a customer is worth* once acquired."
         )
 
 
@@ -341,8 +340,8 @@ def market_page() -> None:
         "Market potential m — customers who will EVENTUALLY adopt",
         min_value=100.0, max_value=1e9, value=float(st.session_state.get("plan", {}).get("m", 100_000)),
         step=1000.0, format="%.0f",
-        help="Not the population: the share of it that would realistically ever adopt. One disciplined route: "
-        "target population × an evidence-based eventual penetration (e.g., from a ChoiceSignal preference share).",
+        help="Not the population: the share of it that would realistically ever adopt — a judgment combining the "
+        "target population with a defensible eventual penetration. Document how you arrived at it.",
     )
     st.subheader("Borrow p and q from published analogies")
     st.caption(
@@ -365,10 +364,12 @@ def market_page() -> None:
     if q <= p:
         st.warning("With q ≤ p there is almost no word-of-mouth engine: adoption starts at its maximum and only declines.")
 
+    preview_curve = bass_curve(p, q, m, 60)
+    preview_peak = preview_curve.loc[preview_curve["new_adopters"].idxmax()]
     preview = st.columns(3)
-    preview[0].metric("Time to sales peak", f"{peak_time(p, q):.1f} periods")
-    preview[1].metric("Peak-period adoptions", f"{peak_adoptions(p, q, m):,.0f}")
-    preview[2].metric("Adopting in period 1", f"{p * m:,.0f}")
+    preview[0].metric("Sales peak in period", f"{int(preview_peak['period'])}")
+    preview[1].metric("Peak-period adoptions", f"{preview_peak['new_adopters']:,.0f}")
+    preview[2].metric("Adopting in period 1", f"{preview_curve['new_adopters'].iloc[0]:,.0f}")
     st.caption(
         "Periods follow the analogs' unit — years for the published table. If you plan in quarters, published "
         "yearly parameters do not transfer directly; prefer fitting your own quarterly history on page 3."
@@ -411,7 +412,10 @@ def forecast_page() -> None:
     context[0].metric("Market potential", f"{plan['m']:,.0f}")
     context[1].metric("p (innovation)", f"{plan['p']:.3f}")
     context[2].metric("q (imitation)", f"{plan['q']:.2f}")
-    context[3].metric("Time to peak", f"{peak_time(plan['p'], plan['q']):.1f} periods")
+    context_curve = bass_curve(plan["p"], plan["q"], plan["m"], 60)
+    context[3].metric(
+        "Sales peak in period", f"{int(context_curve.loc[context_curve['new_adopters'].idxmax(), 'period'])}"
+    )
     horizon = st.slider("Forecast horizon (periods)", 5, 60, 15)
 
     try:
@@ -512,14 +516,17 @@ def fit_page() -> None:
     )
     if st.button("Fit the Bass model", type="primary"):
         try:
-            series = prepare_adoption_series(frame, period_column, adopters_column)
+            series, series_warnings = prepare_adoption_series(frame, period_column, adopters_column)
             st.session_state["history_fit"] = fit_bass(series)
+            st.session_state["history_warnings"] = series_warnings
         except Exception as exc:
             show_error(exc)
 
     fit = st.session_state.get("history_fit")
     if fit is None:
         return
+    for warning in st.session_state.get("history_warnings", []):
+        st.warning(warning)
     for warning in fit.warnings:
         st.warning(warning)
     metrics = st.columns(4)
@@ -531,6 +538,13 @@ def fit_page() -> None:
         f"Estimated by {'nonlinear least squares' if fit.method == 'nls' else 'Bass’s original regression'} on "
         f"{len(fit.fitted)} periods. p is always the least precisely identified parameter; q and m carry the story."
     )
+    if fit.standard_errors:
+        se = fit.standard_errors
+        st.caption(
+            f"Approximate standard errors (model-conditional): p ± {se['p']:.4f}, q ± {se['q']:.3f}, "
+            f"m ± {se['m']:,.0f}. The uncertainty in m is usually the widest — especially before the peak — "
+            "and p, q, and m are strongly correlated, so read them jointly, not one at a time."
+        )
 
     extra = st.slider("Forecast further periods beyond the history", 0, 40, 8)
     observed = fit.fitted
@@ -540,20 +554,15 @@ def fit_page() -> None:
     figure.add_trace(go.Scatter(x=observed["period"], y=observed["fitted_new_adopters"], name="Fitted",
                                 mode="lines", line=dict(color=COLORS["ink"], width=2.4)))
     if extra:
-        remaining = max(float(fit.m) - float(observed["cumulative_adopters"].iloc[-1]), 0.0)
-        cumulative = float(observed["cumulative_adopters"].iloc[-1])
-        forward_rows = []
-        for step in range(1, extra + 1):
-            adopters = max((fit.p + fit.q * cumulative / fit.m) * (fit.m - cumulative), 0.0)
-            cumulative += adopters
-            forward_rows.append({"period_index": len(observed) + step, "forecast_new_adopters": adopters})
-        forward = pd.DataFrame(forward_rows)
+        forward = forecast_beyond(fit, extra)
+        remaining = max(float(fit.m) - float(observed["fitted_cumulative"].iloc[-1]), 0.0)
         figure.add_trace(go.Scatter(
             x=[f"+{index}" for index in range(1, extra + 1)], y=forward["forecast_new_adopters"],
             name="Forecast", mode="lines+markers", line=dict(color=COLORS["coral"], width=2.4, dash="dash"),
         ))
         st.caption(
-            f"About {remaining:,.0f} adopters remain before the fitted market potential is exhausted."
+            f"About {remaining:,.0f} adopters remain before the fitted market potential is exhausted "
+            "(measured on the fitted curve, the same curve the forecast extends)."
         )
     figure.update_layout(height=440, margin=dict(l=10, r=10, t=20, b=10), legend_title_text="",
                          xaxis_title="Period", yaxis_title="New adopters", hovermode="x unified")

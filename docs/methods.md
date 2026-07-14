@@ -13,9 +13,11 @@ have already adopted):
 n(t) = \left(p + q\,\frac{N(t-1)}{m}\right)\bigl(m - N(t-1)\bigr).
 \]
 
-The app uses this discrete recursion for curves and tables. Peak metrics use the continuous solution: adoption
-peaks at \(t^* = \ln(q/p)/(p+q)\) with peak rate \(m(p+q)^2/(4q)\), provided \(q > p\); with \(q \le p\)
-adoption starts at its maximum and declines. The continuous cumulative form is
+The app uses this discrete recursion for curves and tables, **with each step capped so cumulative adoption can
+never exceed \(m\)** (large \(p+q\) would otherwise overshoot). All peak numbers shown in the UI are read off
+the same discrete curve that is plotted, so the headline and the chart cannot disagree. The continuous solution —
+peak at \(t^* = \ln(q/p)/(p+q)\) with peak rate \(m(p+q)^2/(4q)\) for \(q > p\) — peaks one to two periods
+earlier than the discrete recursion and is kept for theory and tests only. The continuous cumulative form is
 
 \[
 N(t) = m\,\frac{1 - e^{-(p+q)t}}{1 + (q/p)\,e^{-(p+q)t}}.
@@ -35,14 +37,25 @@ Given one row per period of first-time adopters, the app estimates \((p, q, m)\)
 the continuous cumulative curve (Srinivasan & Mason 1986), with starting values from Bass's original regression
 \(n(t) = a + bN(t-1) + cN(t-1)^2\), where \(m\) solves the quadratic and \(p = a/m\), \(q = b + p\). If NLS
 fails, the regression estimates are reported with a warning. Reported fit is \(R^2\) on period adoptions.
+The NLS parameter covariance is kept: the app reports approximate standard errors for \(p\), \(q\), and \(m\)
+and their pairwise correlations, because the three estimates are strongly correlated — especially \(q\) and
+\(m\) — and should be read jointly. Forecasts beyond the history extend the **same fitted continuous curve**,
+not a separate discrete recursion, so the forecast always continues the fit exactly.
 
 Two published cautions are surfaced in the UI rather than buried:
 
 - **Pre-peak instability.** Until the sales peak has clearly passed, \(m\) is weakly identified and estimates
-  can change dramatically with one more period of data. The app flags any history whose maximum is its last
-  observation.
+  can change dramatically with one more period of data. "Clearly passed" requires at least two post-peak periods
+  averaging well below the peak observation — a single small decline is not treated as evidence.
 - **\(p\) is imprecise.** The innovation parameter is small and estimated from the earliest, noisiest periods;
   \(q\) and \(m\) carry most of the managerial story.
+
+## History validation
+
+Duplicate period labels are rejected (each period must be one row). Rows without a numeric adoption count are
+dropped with a visible warning, and unequally spaced numeric periods trigger a warning because the model assumes
+equal periods. Published analog suggestions are clamped to usable ranges (\(p \in [0.001, 0.1]\),
+\(q \in [0.05, 0.9]\)) — hybrid corn's published \(p = 0.000\) would otherwise make the model degenerate.
 
 ## Boundaries
 
