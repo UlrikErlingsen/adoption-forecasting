@@ -105,8 +105,9 @@ AdoptSignal is part of a small family of open, local-first marketing-analytics a
 - **[PositionSignal](https://github.com/UlrikErlingsen/brand-positioning)** — perceptual mapping for brand positioning: where brands sit relative to competitors, from brand-attribute ratings.
 - **[AllocSignal](https://github.com/UlrikErlingsen/marketing-mix-allocation)** — marketing response and budget allocation: saturating response curves, constrained optimization, and a panel-evidence workspace.
 - **[DriverSignal](https://github.com/UlrikErlingsen/survey-driver-analysis)** — survey driver analysis: scale reliability, robust standardized drivers, and correlated-predictor importance for satisfaction and NPS.
+- **[GateSignal](https://github.com/UlrikErlingsen/launch-decision-gate)** — the decision gate: criteria, evidence, scenario NPV, volume bridge, risk triage, and an honest go/hold/rework/kill brief.
 
-Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), *what a customer is worth* once acquired (WorthSignal), *what drives their satisfaction* (DriverSignal), and *where the next budget should go* (AllocSignal).
+Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), *what a customer is worth* once acquired (WorthSignal), *what drives their satisfaction* (DriverSignal), *where the next budget should go* (AllocSignal), and *whether the launch investment should proceed at all* (GateSignal).
 
 ## Privacy and responsible use
 
