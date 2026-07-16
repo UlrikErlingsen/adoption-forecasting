@@ -106,8 +106,11 @@ AdoptSignal is part of a small family of open, local-first marketing-analytics a
 - **[AllocSignal](https://github.com/UlrikErlingsen/marketing-mix-allocation)** — marketing response and budget allocation: saturating response curves, constrained optimization, and a panel-evidence workspace.
 - **[DriverSignal](https://github.com/UlrikErlingsen/survey-driver-analysis)** — survey driver analysis: scale reliability, robust standardized drivers, and correlated-predictor importance for satisfaction and NPS.
 - **[GateSignal](https://github.com/UlrikErlingsen/launch-decision-gate)** — the decision gate: criteria, evidence, scenario NPV, volume bridge, risk triage, and an honest go/hold/rework/kill brief.
+- **[ExperimentSignal](https://github.com/UlrikErlingsen/experiment-analysis)** — randomized experiment analysis: design audit, covariate-adjusted HC3 intervals, Holm multiplicity control, and a practical-effect decision bound declared before the result.
+- **[MeasureSignal](https://github.com/UlrikErlingsen/measurement-validation)** — measurement diagnostics: factorability, parallel analysis, common-factor EFA, alpha and omega, and a frozen scoring recipe for holdout confirmation.
+- **[TextSignal](https://github.com/UlrikErlingsen/open-text-analysis)** — open-text evidence: corpus audit, lexical contrast, perturbation-stable NMF patterns, and a human codebook hand-off.
 
-Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), *what a customer is worth* once acquired (WorthSignal), *what drives their satisfaction* (DriverSignal), *where the next budget should go* (AllocSignal), and *whether the launch investment should proceed at all* (GateSignal).
+Together they cover the launch questions in order: *what* to build (ChoiceSignal), *who* it is for (SegmentSignal), *how the market perceives you* (PositionSignal), *when* the market adopts (AdoptSignal), *what a customer is worth* once acquired (WorthSignal), *what drives their satisfaction* (DriverSignal), *what their words say* (TextSignal), *whether the scores you rely on measure anything* (MeasureSignal), *whether a tested change actually worked* (ExperimentSignal), *where the next budget should go* (AllocSignal), and *whether the launch investment should proceed at all* (GateSignal).
 
 ## Privacy and responsible use
 
