@@ -9,7 +9,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-RUN useradd --create-home --uid 10001 adoptsignal && chown -R adoptsignal:adoptsignal /app
+# App code stays root-owned and read-only; the runtime user only writes to its own home.
+RUN useradd --create-home --uid 10001 adoptsignal
 USER adoptsignal
 
 EXPOSE 8501

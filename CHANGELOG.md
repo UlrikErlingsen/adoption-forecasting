@@ -2,6 +2,13 @@
 
 All notable changes to AdoptSignal are documented here.
 
+## 1.1.1 - 2026-07-16
+
+### Security
+
+- Excel exports now neutralize formula-like column headers (not only cell values) and scrub and de-duplicate sheet names.
+- The Docker image keeps application code root-owned and read-only, and defusedxml hardens workbook XML parsing.
+
 ## 1.1.0 - 2026-07-14
 
 Statistical corrections following an external methods audit:
