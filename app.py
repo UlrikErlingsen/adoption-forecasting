@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import os
@@ -644,6 +646,7 @@ else:
     methods_page()
 
 st.markdown(
-    f"<div class='as-footer'>AdoptSignal v{__version__} <span>•</span> Built for transparent growth forecasting <span>•</span> Your uploaded file is not persisted by the app</div>",
+    f"<div class='as-footer'>AdoptSignal v{__version__} <span>◆</span> Structured forecast, not prediction "
+    "<span>◆</span> Part of the Signal suite <span>◆</span> AGPL-3.0-or-later</div>",
     unsafe_allow_html=True,
 )
