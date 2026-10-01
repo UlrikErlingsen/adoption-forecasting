@@ -2,6 +2,26 @@
 
 All notable changes to Adopt Signal (published as AdoptSignal before 1.2.0) are documented here.
 
+## 1.2.0 - 2026-10-01
+
+Signal brand refresh and Signal Hub entry point. The model, estimation, warnings, data contract and export contents are unchanged.
+
+### Brand
+
+- Display name written **Adopt Signal** (with a space) in the app, README, docs, launchers and metadata. Package, dist, file and environment-variable names stay `adoptsignal` / `adoption-forecasting` / `ADOPTSIGNAL_*`.
+- The app uses the shared `signal_theme` module (Organic Signal design, Market family colour `#728157`, Figtree): sidebar lockup, masthead, hero, step cards, notes, footer, Plotly template (shown with `theme=None`) and the mark as favicon replace the pasted styles. Chart colours follow the Market colorway and the suite's semantic roles.
+- New banner, social preview and marks in `assets/`; the old banner SVG is removed. `.streamlit/config.toml` uses the family colours; the Docker image passes the documented 200 MB upload limit explicitly.
+- The demo descriptions in the sidebar are a caption instead of an expander. Export metadata names the product "Adopt Signal".
+- README follows the Signal template; bug-report and feature-request issue templates added.
+
+### Signal Hub contract
+
+- `adoptsignal.ui` exposes `APP_INFO` and `render()`, so Signal Hub can embed the app; `app.py` is now a thin standalone entry point.
+- All session-state and widget keys are namespaced `adopt:` (including the page selector).
+- The demo histories come from a new core module, `adoptsignal.examples`, byte-identical to the files in `examples/`, so the demos also work from an installed wheel.
+- `streamlit` and `plotly` moved to a `ui` extra (also in `test`); the analysis core installs without them. `requirements.txt` still lists everything.
+- New tests: no Streamlit/Plotly import outside `adoptsignal.ui`, `render()` runs from a script without a page config, every widget key is namespaced, the demos match the committed examples, and the shell, README and theme follow the Signal brand.
+
 ## 1.1.1 - 2026-07-16
 
 ### Security
