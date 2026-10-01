@@ -5,7 +5,7 @@
 Pages 1–2 work from three numbers: market potential, and the p/q parameters (borrowed from the built-in
 published analog table or set manually). Bring data only when you want to **fit** the model on page 3.
 
-## The shape AdoptSignal expects for fitting
+## The shape Adopt Signal expects for fitting
 
 One row per period, in time order:
 

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use AdoptSignal in research or teaching, please cite this software."
-title: "AdoptSignal: Open Adoption Forecasting"
+message: "If you use Adopt Signal in research or teaching, please cite this software."
+title: "Adopt Signal: Open Adoption Forecasting"
 type: software
 authors:
   - family-names: Erlingsen

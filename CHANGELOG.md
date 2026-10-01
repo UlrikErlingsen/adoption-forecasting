@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to AdoptSignal are documented here.
+All notable changes to Adopt Signal (published as AdoptSignal before 1.2.0) are documented here.
 
 ## 1.1.1 - 2026-07-16
 

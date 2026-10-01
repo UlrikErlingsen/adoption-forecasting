@@ -1,6 +1,6 @@
-# AdoptSignal AI Analyst — run this analysis with any AI, no install needed
+# Adopt Signal AI Analyst — run this analysis with any AI, no install needed
 
-> Part of [AdoptSignal](https://github.com/UlrikErlingsen/adoption-forecasting), a free open-source app that runs this same analysis with a point-and-click interface on your computer. This file is the no-install alternative: give it to an AI assistant and it becomes the analyst.
+> Part of [Adopt Signal](https://github.com/UlrikErlingsen/adoption-forecasting), a free open-source app that runs this same analysis with a point-and-click interface on your computer. This file is the no-install alternative: give it to an AI assistant and it becomes the analyst.
 
 ## How to use this file (2 minutes)
 

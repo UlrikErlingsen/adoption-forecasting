@@ -1,6 +1,6 @@
 # Methods and validation
 
-AdoptSignal implements the Bass (1969) diffusion model for first-time adoption of an innovation.
+Adopt Signal implements the Bass (1969) diffusion model for first-time adoption of an innovation.
 
 ## The model
 

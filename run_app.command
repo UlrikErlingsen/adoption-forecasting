@@ -12,7 +12,7 @@ if [ -f "$PID_FILE" ] && [ -f "$PORT_FILE" ]; then
   EXISTING_PORT="$(/bin/cat "$PORT_FILE")"
   EXISTING_URL="http://127.0.0.1:${EXISTING_PORT}"
   if /bin/kill -0 "$EXISTING_PID" 2>/dev/null && /usr/bin/curl -fsS "${EXISTING_URL}/_stcore/health" >/dev/null 2>&1; then
-    echo "AdoptSignal is already running. Opening it now."
+    echo "Adopt Signal is already running. Opening it now."
     if [ "${ADOPTSIGNAL_NO_BROWSER:-0}" != "1" ]; then
       /usr/bin/open "$EXISTING_URL"
     fi
@@ -22,14 +22,14 @@ if [ -f "$PID_FILE" ] && [ -f "$PORT_FILE" ]; then
 fi
 
 if ! /usr/bin/env python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-  echo "AdoptSignal needs Python 3.10 or newer."
+  echo "Adopt Signal needs Python 3.10 or newer."
   echo "Install it from https://www.python.org/downloads/ and try again."
   read -r -p "Press Return to close..."
   exit 1
 fi
 
 if [ ! -d ".venv" ]; then
-  echo "Creating AdoptSignal's private Python environment..."
+  echo "Creating Adopt Signal's private Python environment..."
   /usr/bin/env python3 -m venv .venv
 fi
 
@@ -47,7 +47,7 @@ if [ ! -f "$READY_FILE" ]; then
   /bin/rm -f .venv/.adoptsignal-requirements-* .venv/.adoptsignal-ready
   /usr/bin/touch "$READY_FILE"
 else
-  echo "Using the existing AdoptSignal environment."
+  echo "Using the existing Adopt Signal environment."
 fi
 
 if [ -n "${ADOPTSIGNAL_PORT:-}" ]; then
@@ -75,7 +75,7 @@ fi
 URL="http://127.0.0.1:${PORT}"
 MAX_UPLOAD_MB="${ADOPTSIGNAL_MAX_UPLOAD_MB:-200}"
 
-echo "Starting AdoptSignal at ${URL}..."
+echo "Starting Adopt Signal at ${URL}..."
 python -m streamlit run app.py \
   --server.headless=true \
   --server.address=127.0.0.1 \
@@ -99,7 +99,7 @@ trap cleanup EXIT INT TERM
 ATTEMPT=1
 while [ "$ATTEMPT" -le 120 ]; do
   if /usr/bin/curl -fsS "${URL}/_stcore/health" >/dev/null 2>&1; then
-    echo "AdoptSignal is ready. Opening your browser..."
+    echo "Adopt Signal is ready. Opening your browser..."
     if [ "${ADOPTSIGNAL_NO_BROWSER:-0}" != "1" ]; then
       /usr/bin/open "$URL"
     fi
@@ -107,7 +107,7 @@ while [ "$ATTEMPT" -le 120 ]; do
     exit $?
   fi
   if ! /bin/kill -0 "$APP_PID" 2>/dev/null; then
-    echo "AdoptSignal stopped before it became ready. Review the message above."
+    echo "Adopt Signal stopped before it became ready. Review the message above."
     wait "$APP_PID"
     exit $?
   fi
@@ -115,5 +115,5 @@ while [ "$ATTEMPT" -le 120 ]; do
   /bin/sleep 0.25
 done
 
-echo "AdoptSignal took too long to start. Review the message above, then try again."
+echo "Adopt Signal took too long to start. Review the message above, then try again."
 exit 1

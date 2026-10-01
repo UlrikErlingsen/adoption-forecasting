@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions that make AdoptSignal clearer, safer, more accurate, or easier for marketers are welcome.
+Contributions that make Adopt Signal clearer, safer, more accurate, or easier for marketers are welcome.
 
 ## Development setup
 
