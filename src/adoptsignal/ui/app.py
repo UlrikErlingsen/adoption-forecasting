@@ -531,13 +531,13 @@ def _sidebar_data() -> None:
         load_demo("demo_mealkit_early.csv")
         go_to(FIT_PAGE)
         st.rerun()
-    # A plain caption, not an expander: the theme styles expanders as light cards, which hides their label on the
-    # dark sidebar.
-    st.caption(
-        "**What are the demos?** **Smart-lock sales:** 16 fictional quarters of unit sales, clearly past the sales "
-        "peak — a comfortable fit. **Early meal-kit data:** only 6 fictional quarters, before the peak — shows how "
-        "honest the app is about pre-peak uncertainty. Every record is synthetic."
-    )
+    with st.expander("What are the demos?"):
+        st.caption(
+            "**Smart-lock sales:** 16 fictional quarters of unit sales, clearly past the sales peak — a "
+            "comfortable fit.\n\n"
+            "**Early meal-kit data:** only 6 fictional quarters, before the peak — shows how honest the app is "
+            "about pre-peak uncertainty.\n\nEvery record is synthetic."
+        )
     if st.session_state.get(k("tables")) and full_width(st.button, "Clear session data", key=k("clear_data")):
         for name in (
             "tables", "source_name", "active_table", "upload_identity", "uploader_had_file",

@@ -10,8 +10,8 @@ Signal brand refresh and Signal Hub entry point. The model, estimation, warnings
 
 - Display name written **Adopt Signal** (with a space) in the app, README, docs, launchers and metadata. Package, dist, file and environment-variable names stay `adoptsignal` / `adoption-forecasting` / `ADOPTSIGNAL_*`.
 - The app uses the shared `signal_theme` module (Organic Signal design, Market family colour `#728157`, Figtree): sidebar lockup, masthead, hero, step cards, notes, footer, Plotly template (shown with `theme=None`) and the mark as favicon replace the pasted styles. Chart colours follow the Market colorway and the suite's semantic roles.
-- New banner, social preview and marks in `assets/`; the old banner SVG is removed. `.streamlit/config.toml` uses the family colours; the Docker image passes the documented 200 MB upload limit explicitly.
-- The demo descriptions in the sidebar are a caption instead of an expander. Export metadata names the product "Adopt Signal".
+- New banner, social preview and marks in `assets/`; the old banner SVG is removed. `.streamlit/config.toml` uses the family colours.
+- Export metadata names the product "Adopt Signal".
 - README follows the Signal template; bug-report and feature-request issue templates added.
 
 ### Signal Hub contract
