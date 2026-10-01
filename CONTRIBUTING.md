@@ -16,7 +16,7 @@ On Windows, activate with `.venv\Scripts\activate`.
 
 ## Design rules
 
-- Keep statistical and data logic in typed, testable functions under `src/adoptsignal/`; do not import Streamlit there.
+- Keep statistical and data logic in typed, testable functions under `src/adoptsignal/`; do not import Streamlit or Plotly there. The only exception is `src/adoptsignal/ui/`, the user interface and Signal Hub entry point.
 - Use plain-language error messages with a concrete next action.
 - Preserve row counts and customer IDs through every pipeline.
 - Do not present diffusion forecasts as guarantees; parameter and market-potential uncertainty must stay visible.

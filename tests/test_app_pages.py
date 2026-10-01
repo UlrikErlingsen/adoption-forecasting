@@ -27,7 +27,7 @@ def test_loading_a_demo_navigates_to_fit_page_and_keeps_the_radio_in_sync():
     app.run()
     next(button for button in app.sidebar.button if button.label == "Demo · smart-lock sales").click().run()
     assert app.sidebar.radio[0].value == "3 · Fit your own history"
-    assert app.session_state["nav_target"] == "3 · Fit your own history"
+    assert app.session_state["adopt:nav_target"] == "3 · Fit your own history"
     assert not app.exception, [error.value for error in app.exception]
 
 
@@ -37,7 +37,7 @@ def test_full_fit_flow_reaches_estimates():
     next(button for button in app.sidebar.button if button.label == "Demo · smart-lock sales").click().run()
     next(button for button in app.button if button.label == "Fit the Bass model").click().run()
     assert not app.exception, [error.value for error in app.exception]
-    fit = app.session_state["history_fit"]
+    fit = app.session_state["adopt:history_fit"]
     assert fit.method == "nls"
     assert fit.r_squared > 0.9
 
@@ -47,6 +47,24 @@ def test_plan_and_forecast_flow_without_any_data():
     app.run()
     app.sidebar.radio[0].set_value("1 · Market & analogs").run()
     next(button for button in app.button if button.label == "Save this launch plan").click().run()
-    assert app.session_state["plan"]["m"] > 0
+    assert app.session_state["adopt:plan"]["m"] > 0
     app.sidebar.radio[0].set_value("2 · Forecast & scenarios").run()
     assert not app.exception, [error.value for error in app.exception]
+
+
+def test_choosing_analogs_moves_the_sliders_and_continue_opens_the_forecast():
+    from adoptsignal.bass import ANALOG_PARAMETERS, analog_suggestion
+
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.run()
+    app.sidebar.radio[0].set_value("1 · Market & analogs").run()
+    category = next(name for name in ANALOG_PARAMETERS["category"] if name != "Cross-category average")
+    expected_p, expected_q = analog_suggestion([category])
+    app.multiselect[0].set_value([category]).run()
+    assert not app.exception, [error.value for error in app.exception]
+    assert app.slider[0].value == pytest.approx(round(expected_p, 3))
+    assert app.slider[1].value == pytest.approx(round(expected_q, 2))
+    next(button for button in app.button if button.label == "Save this launch plan").click().run()
+    next(button for button in app.button if button.label.startswith("Continue to 2")).click().run()
+    assert not app.exception, [error.value for error in app.exception]
+    assert app.sidebar.radio[0].value == "2 · Forecast & scenarios"
