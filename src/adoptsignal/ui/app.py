@@ -29,7 +29,7 @@ from adoptsignal.bass import (
     prepare_adoption_series,
 )
 from adoptsignal.errors import DataProblem, friendly_message
-from adoptsignal.examples import demo_csv_bytes
+from adoptsignal.examples import DEMOS, demo_csv_bytes
 from adoptsignal.io import LoadedData, load_data, results_to_excel, results_to_json, safe_for_spreadsheet
 from adoptsignal.ui import signal_theme as sig
 
@@ -54,6 +54,12 @@ CAUTION = (
 )
 
 FIT_PAGE = "3 · Fit your own history"
+
+# Opened with no data, the app preloads this fictional history (past its peak, so the fit is comfortable) and a
+# starting launch plan from the page-1 defaults, so every page shows results before anything is uploaded.
+PRELOADED_DEMO = "demo_smartlock_sales.csv"
+DEFAULT_ANALOGS = ["Cross-category average"]
+DEFAULT_MARKET_POTENTIAL = 100_000.0
 
 _USES_STRETCH_WIDTH = "width" in inspect.signature(st.button).parameters
 
@@ -83,6 +89,19 @@ def _ensure_state() -> None:
     st.session_state.setdefault(k("data_epoch"), 0)
     st.session_state.setdefault(k("uploader_had_file"), False)
     st.session_state.setdefault(k("nav_target"), next(iter(PAGES)))
+    # First run only: "Clear session data" keeps the app empty instead of preloading the demo again.
+    if not st.session_state.get(k("demo_preloaded")):
+        st.session_state[k("demo_preloaded")] = True
+        if not st.session_state.get(k("tables")):
+            load_demo(PRELOADED_DEMO)
+        if not st.session_state.get(k("plan")):
+            st.session_state[k("plan")] = _default_plan()
+
+
+def _default_plan() -> dict:
+    """The launch plan page 1 shows before anything is changed: published cross-category average analogs."""
+    p, q = analog_suggestion(DEFAULT_ANALOGS)
+    return {"m": DEFAULT_MARKET_POTENTIAL, "p": float(round(p, 3)), "q": float(round(q, 2)), "analogs": DEFAULT_ANALOGS}
 
 
 def _clear_fit() -> None:
@@ -101,8 +120,15 @@ def set_loaded(loaded: LoadedData) -> None:
 
 
 def load_demo(filename: str) -> None:
+    """Load a fictional demo history and fit it, so the fit page shows estimates straight away."""
     # Generated in memory (identical to the committed examples/ files), so the demos also work from a wheel.
     set_loaded(load_data(demo_csv_bytes(filename), name=filename))
+    try:
+        series, series_warnings = prepare_adoption_series(current_frame(), "quarter", DEMOS[filename]["label"])
+        st.session_state[k("history_fit")] = fit_bass(series)
+        st.session_state[k("history_warnings")] = series_warnings
+    except Exception:  # the demo still loads; "Fit the Bass model" shows any problem
+        _clear_fit()
 
 
 def current_frame() -> pd.DataFrame | None:
@@ -135,6 +161,13 @@ def welcome_page() -> None:
             "own sales history, and see when adoption should take off, peak, and saturate."
         ),
         pills=["No account", "No telemetry", "Published analogies", "Honest pre-peak warnings"],
+    )
+    sig.note(
+        "info",
+        "**Adopt Signal opens with a fictional demo preloaded.** A starting launch plan (published "
+        "cross-category average analogs) fills pages 1–2, and 16 quarters of fictional smart-lock sales are "
+        "already fitted on page 3, so every page shows results before you upload anything. Every demo record is "
+        "synthetic. Upload your own history in the sidebar to replace it.",
     )
     sig.note("warn", CAUTION)
     sig.cards(
@@ -175,7 +208,7 @@ def market_page() -> None:
     plan = st.session_state.get(k("plan")) or {}
     m = st.number_input(
         "Market potential m — customers who will EVENTUALLY adopt",
-        min_value=100.0, max_value=1e9, value=float(plan.get("m", 100_000)),
+        min_value=100.0, max_value=1e9, value=float(plan.get("m", DEFAULT_MARKET_POTENTIAL)),
         step=1000.0, format="%.0f",
         help="Not the population: the share of it that would realistically ever adopt — a judgment combining the "
         "target population with a defensible eventual penetration. Document how you arrived at it.",
@@ -189,7 +222,7 @@ def market_page() -> None:
     full_width(st.dataframe, ANALOG_PARAMETERS, hide_index=True)
     chosen = st.multiselect(
         "Analog categories", ANALOG_PARAMETERS["category"].tolist(),
-        default=plan.get("analogs", ["Cross-category average"]),
+        default=plan.get("analogs", DEFAULT_ANALOGS),
         key=k("analogs"),
     )
     try:
@@ -496,8 +529,12 @@ PAGES = {
 def _sidebar_data() -> None:
     """Upload, demo and table controls. Loading data jumps to the fit page."""
     st.markdown("### Forecast without data")
-    st.caption("Pages 1–2 need no file: set the market and borrow parameters from published analogies.")
+    st.caption(
+        "Pages 1–2 need no file: set the market and borrow parameters from published analogies. The app opens "
+        "with a starting plan."
+    )
     st.markdown("### Or fit your history")
+    st.caption("The app opens with the fictional smart-lock demo. Upload your own file to replace it.")
     uploaded = st.file_uploader(
         "CSV, Excel, or JSON with one row per period",
         type=["csv", "xlsx", "xls", "xlsm", "json"],
@@ -536,7 +573,8 @@ def _sidebar_data() -> None:
             "**Smart-lock sales:** 16 fictional quarters of unit sales, clearly past the sales peak — a "
             "comfortable fit.\n\n"
             "**Early meal-kit data:** only 6 fictional quarters, before the peak — shows how honest the app is "
-            "about pre-peak uncertainty.\n\nEvery record is synthetic."
+            "about pre-peak uncertainty.\n\nThe smart-lock demo is preloaded when the app opens; these buttons "
+            "restore or switch the demo. Every record is synthetic."
         )
     if st.session_state.get(k("tables")) and full_width(st.button, "Clear session data", key=k("clear_data")):
         for name in (

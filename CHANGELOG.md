@@ -20,6 +20,8 @@ Signal brand refresh and Signal Hub entry point. The model, estimation, warnings
 - All session-state and widget keys are namespaced `adopt:` (including the page selector).
 - The demo histories come from a new core module, `adoptsignal.examples`, byte-identical to the files in `examples/`, so the demos also work from an installed wheel.
 - `streamlit` and `plotly` moved to a `ui` extra (also in `test`); the analysis core installs without them. `requirements.txt` still lists everything.
+- Opens with the fictional demo preloaded: a starting launch plan (page-1 defaults) and the fitted smart-lock history, so every page shows results without an upload. The demo buttons restore or switch the demo, an upload replaces it, and "Clear session data" leaves the app empty.
+- Embedded Figtree font, no Google Fonts request: the synced `signal_theme` loads Figtree from the new `signal_font` module (base64), and the colorway uses the per-family contrast order.
 - New tests: no Streamlit/Plotly import outside `adoptsignal.ui`, `render()` runs from a script without a page config, every widget key is namespaced, the demos match the committed examples, and the shell, README and theme follow the Signal brand.
 
 ## 1.1.1 - 2026-07-16
