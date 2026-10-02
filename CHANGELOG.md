@@ -2,7 +2,7 @@
 
 All notable changes to Adopt Signal (published as AdoptSignal before 1.2.0) are documented here.
 
-## 1.2.0 - 2026-10-01
+## 1.2.0 - 2026-10-02
 
 Signal brand refresh and Signal Hub entry point. The model, estimation, warnings, data contract and export contents are unchanged.
 
