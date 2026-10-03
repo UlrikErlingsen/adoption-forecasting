@@ -52,7 +52,7 @@ Two published cautions are surfaced in the UI rather than buried:
 
 ## History validation
 
-Duplicate period labels are rejected (each period must be one row). Rows without a numeric adoption count are
+Duplicate period labels are rejected (each period must be one row) unless the user asks to sum them, group dates into calendar periods or count rows; the aggregation is reported and exported. Rows without a numeric adoption count are
 dropped with a visible warning, and unequally spaced numeric periods trigger a warning because the model assumes
 equal periods. Published analog suggestions are clamped to usable ranges (\(p \in [0.001, 0.1]\),
 \(q \in [0.05, 0.9]\)) — hybrid corn's published \(p = 0.000\) would otherwise make the model degenerate.

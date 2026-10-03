@@ -22,6 +22,8 @@ import streamlit as st
 from adoptsignal import __version__
 from adoptsignal.bass import (
     ANALOG_PARAMETERS,
+    COUNT_ROWS,
+    DATE_GROUPINGS,
     analog_suggestion,
     bass_curve,
     fit_bass,
@@ -104,9 +106,13 @@ def _default_plan() -> dict:
     return {"m": DEFAULT_MARKET_POTENTIAL, "p": float(round(p, 3)), "q": float(round(q, 2)), "analogs": DEFAULT_ANALOGS}
 
 
+CHART_POINTS = 5_000  # periods drawn on the fit chart; the fit and the export always use every period
+
+
 def _clear_fit() -> None:
     st.session_state.pop(k("history_fit"), None)
     st.session_state.pop(k("history_warnings"), None)
+    st.session_state.pop(k("history_aggregation"), None)
 
 
 def set_loaded(loaded: LoadedData) -> None:
@@ -394,14 +400,32 @@ def fit_page() -> None:
     epoch = int(st.session_state.get(k("data_epoch"), 0))
     period_column = st.selectbox("Period column", columns, index=period_guess, key=k(f"period_column_{epoch}"))
     adopters_column = st.selectbox(
-        "New adopters per period", columns, index=numeric_hints[0] if numeric_hints else len(columns) - 1,
+        "New adopters per period", [*columns, COUNT_ROWS],
+        index=numeric_hints[0] if numeric_hints else len(columns) - 1,
         key=k(f"adopters_column_{epoch}"),
+        help="Pick the count column, or count rows when the file has one row per adopter.",
     )
+    with st.expander("Large or detailed files: one row per store, region, day or adopter"):
+        st.caption(
+            "The Bass model needs one row per period. These options reduce a detailed file to that before fitting; "
+            f"what was done is shown as a warning and recorded in the JSON export. Loaded: {len(frame):,} rows."
+        )
+        groupings = ["as in the file", *DATE_GROUPINGS]
+        grouping = st.selectbox("Group dates into", groupings, key=k(f"date_grouping_{epoch}"))
+        sum_rows = st.checkbox(
+            "Sum rows that share a period (stores, regions, channels or transactions)",
+            key=k(f"sum_rows_{epoch}"),
+        )
     if st.button("Fit the Bass model", type="primary", key=k("fit_model")):
         try:
-            series, series_warnings = prepare_adoption_series(frame, period_column, adopters_column)
-            st.session_state[k("history_fit")] = fit_bass(series)
+            with st.spinner("Preparing the history and fitting…"):
+                series, series_warnings = prepare_adoption_series(
+                    frame, period_column, adopters_column, sum_rows_per_period=sum_rows,
+                    group_dates_by=None if grouping == "as in the file" else grouping,
+                )
+                st.session_state[k("history_fit")] = fit_bass(series)
             st.session_state[k("history_warnings")] = series_warnings
+            st.session_state[k("history_aggregation")] = series.attrs.get("aggregation")
         except Exception as exc:
             show_error(exc)
 
@@ -431,6 +455,13 @@ def fit_page() -> None:
 
     extra = st.slider("Forecast further periods beyond the history", 0, 40, 8, key=k("extra_periods"))
     observed = fit.fitted
+    if len(observed) > CHART_POINTS:
+        step = -(-len(observed) // CHART_POINTS)
+        st.caption(
+            f"The chart draws every {step}th of {len(observed):,} periods to stay responsive; the fit, the numbers "
+            "above and the export use every period."
+        )
+        observed = observed.iloc[::step]
     roles = sig.roles(NS)
     figure = go.Figure()
     figure.add_trace(go.Bar(x=observed["period"], y=observed["new_adopters"], name="Actual",
@@ -439,7 +470,7 @@ def fit_page() -> None:
                                 mode="lines", line={"color": roles["estimate"], "width": 2.4}))
     if extra:
         forward = forecast_beyond(fit, extra)
-        remaining = max(float(fit.m) - float(observed["fitted_cumulative"].iloc[-1]), 0.0)
+        remaining = max(float(fit.m) - float(fit.fitted["fitted_cumulative"].iloc[-1]), 0.0)
         figure.add_trace(go.Scatter(
             x=[f"+{index}" for index in range(1, extra + 1)], y=forward["forecast_new_adopters"],
             name="Forecast", mode="lines+markers",
@@ -463,6 +494,7 @@ def fit_page() -> None:
         "estimation": "Srinivasan–Mason NLS with Bass-regression start" if fit.method == "nls" else "Bass regression (OLS)",
         "p": round(fit.p, 6), "q": round(fit.q, 6), "m": round(fit.m, 2), "r_squared": round(fit.r_squared, 4),
         "history_has_peaked": fit.peaked, "periods": len(fit.fitted),
+        "input_aggregation": st.session_state.get(k("history_aggregation")) or "none (one row per period in the file)",
         "dataset_fingerprint_sha256": fingerprint,
         "caution": "Pre-peak histories identify m poorly; refit as new periods arrive.",
     }

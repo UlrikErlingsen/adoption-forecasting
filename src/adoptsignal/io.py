@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from io import BytesIO
 import json
-import os
 from pathlib import Path
 import re
 from typing import BinaryIO
@@ -13,17 +13,13 @@ import zipfile
 
 import pandas as pd
 
+from . import limits
 from .errors import DataProblem
 
 
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".xlsm", ".json"}
-MAX_UPLOAD_MB = max(1, min(int(os.getenv("ADOPTSIGNAL_MAX_UPLOAD_MB", "200")), 1000))
-MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
-MAX_JSON_BYTES = 50 * 1024 * 1024
-MAX_UNCOMPRESSED_EXCEL_BYTES = 400 * 1024 * 1024
-MAX_TABLE_ROWS = 1_000_000
-MAX_TOTAL_CELLS = 10_000_000
-CSV_CHUNK_ROWS = 25_000
+# No built-in data limits when run locally; the public demo caps (SIGNAL_PUBLIC=1) live in ``limits.py``.
+CSV_CHUNK_ROWS = 500_000
 ILLEGAL_XML_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
@@ -63,21 +59,31 @@ def _source_bytes(source: str | Path | bytes | BinaryIO) -> tuple[bytes, str]:
     return source.read(), name
 
 
+def _sniff_separator(raw: bytes) -> str:
+    """The delimiter of a CSV, judged from its first lines (comma, semicolon, tab or pipe; comma if unclear)."""
+    sample = raw[:65_536].decode("utf-8-sig", errors="replace")
+    lines = sample.splitlines()
+    head = "\n".join(lines[:20] if len(lines) > 1 else lines)
+    try:
+        return csv.Sniffer().sniff(head, delimiters=",;\t|").delimiter
+    except csv.Error:
+        return ","
+
+
 def load_data(source: str | Path | bytes | BinaryIO, name: str | None = None) -> LoadedData:
-    """Load CSV, Excel, or JSON without executing user content."""
+    """Load CSV, Excel, or JSON without executing user content.
+
+    No size, row or cell limit when run locally (memory is the limit; running out of it is a plain message). CSV
+    files are read by pandas' C parser in chunks of CSV_CHUNK_ROWS rows — millions of rows take seconds — so a public
+    demo (``SIGNAL_PUBLIC=1``) stops an oversized file early.
+    """
     raw, detected_name = _source_bytes(source)
     source_name = name or detected_name
     extension = Path(source_name).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
         allowed = ", ".join(sorted(SUPPORTED_EXTENSIONS))
         raise DataProblem(f"Please use one of these file types: {allowed}.")
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise DataProblem(
-            f"This file is larger than the configured {MAX_UPLOAD_MB} MB limit. "
-            "Reduce it to the period and adoption columns you need."
-        )
-    if extension == ".json" and len(raw) > MAX_JSON_BYTES:
-        raise DataProblem("JSON uploads are limited to 50 MB because they must be expanded in memory before validation.")
+    limits.check_upload_bytes(len(raw))
     if not raw:
         raise DataProblem("This file is empty.")
 
@@ -86,14 +92,11 @@ def load_data(source: str | Path | bytes | BinaryIO, name: str | None = None) ->
             chunks: list[pd.DataFrame] = []
             row_count = 0
             cell_count = 0
-            for chunk in pd.read_csv(BytesIO(raw), sep=None, engine="python", chunksize=CSV_CHUNK_ROWS):
+            separator = _sniff_separator(raw)
+            for chunk in pd.read_csv(BytesIO(raw), sep=separator, engine="c", chunksize=CSV_CHUNK_ROWS):
                 row_count += len(chunk)
                 cell_count += int(chunk.shape[0] * chunk.shape[1])
-                if row_count > MAX_TABLE_ROWS or cell_count > MAX_TOTAL_CELLS:
-                    raise DataProblem(
-                        f"This CSV exceeds the safety limit of {MAX_TABLE_ROWS:,} rows or {MAX_TOTAL_CELLS:,} cells. "
-                        "Split the study into smaller files or keep fewer columns before upload."
-                    )
+                limits.check_table(row_count, cell_count, "CSV")
                 chunks.append(chunk)
             frame = pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
             tables = {"adoption": frame}
@@ -101,10 +104,7 @@ def load_data(source: str | Path | bytes | BinaryIO, name: str | None = None) ->
             if extension in {".xlsx", ".xlsm"}:
                 with zipfile.ZipFile(BytesIO(raw)) as workbook:
                     uncompressed_size = sum(member.file_size for member in workbook.infolist())
-                if uncompressed_size > MAX_UNCOMPRESSED_EXCEL_BYTES:
-                    raise DataProblem(
-                        "This workbook expands beyond 400 MB. Keep only the sheets and columns needed for the analysis."
-                    )
+                limits.check_workbook_expansion(uncompressed_size)
             tables = pd.read_excel(BytesIO(raw), sheet_name=None)
         else:
             payload = json.loads(raw.decode("utf-8-sig"))
@@ -120,6 +120,8 @@ def load_data(source: str | Path | bytes | BinaryIO, name: str | None = None) ->
                 tables = {"adoption": pd.DataFrame(payload)}
     except DataProblem:
         raise
+    except MemoryError as exc:  # includes pyarrow's ArrowMemoryError
+        raise DataProblem(limits.OUT_OF_MEMORY) from exc
     except Exception as exc:
         raise DataProblem(
             "The file could not be read. Check that it opens normally and that the first row contains column names."
@@ -130,17 +132,10 @@ def load_data(source: str | Path | bytes | BinaryIO, name: str | None = None) ->
     for table_name, frame in tables.items():
         if frame is None or (frame.empty and len(frame.columns) == 0):
             continue
-        copy = frame.copy()
+        copy = frame.copy(deep=False)  # new headers without duplicating a table of millions of rows
         copy.columns = _unique_column_names(list(copy.columns))
-        if len(copy) > MAX_TABLE_ROWS:
-            raise DataProblem(
-                f"The table ‘{table_name}’ has more than {MAX_TABLE_ROWS:,} rows. Aggregate or sample it before upload."
-            )
         total_cells += int(copy.shape[0] * copy.shape[1])
-        if total_cells > MAX_TOTAL_CELLS:
-            raise DataProblem(
-                f"The workbook contains more than {MAX_TOTAL_CELLS:,} cells. Keep only the tables and columns needed."
-            )
+        limits.check_table(len(copy), total_cells, f"table ‘{table_name}’")
         clean[str(table_name)] = copy
     if not clean:
         raise DataProblem("No usable tables were found in this file.")

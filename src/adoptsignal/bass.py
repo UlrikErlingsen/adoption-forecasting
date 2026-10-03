@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import warnings as warnings_module
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 
+from . import limits
 from .errors import DataProblem
 
-MAX_PERIODS = 400
 MINIMUM_FIT_PERIODS = 5
+# Large files: rows are reduced to one row per period before the (compute-bound) fit.
+COUNT_ROWS = "(count rows: one row per adopter)"
+DATE_GROUPINGS = {"week": "W", "month": "M", "quarter": "Q", "year": "Y"}
 
 # Published Bass-parameter estimates for classic categories, widely reproduced in the
 # diffusion literature (Sultan, Farley & Lehmann 1990; Lilien, Rangaswamy & De Bruyn 2017).
@@ -64,8 +68,8 @@ def _validate_parameters(p: float, q: float, m: float) -> None:
 def bass_curve(p: float, q: float, m: float, periods: int, start_period: int = 1) -> pd.DataFrame:
     """Discrete Bass adoption path: n(t) = (p + q·N/m)(m − N)."""
     _validate_parameters(p, q, m)
-    if not (1 <= periods <= MAX_PERIODS):
-        raise DataProblem(f"Choose between 1 and {MAX_PERIODS} forecast periods.")
+    if periods < 1:
+        raise DataProblem("Choose one or more forecast periods.")
     cumulative = 0.0
     rows = []
     for step in range(int(periods)):
@@ -107,21 +111,75 @@ def _cumulative_bass(t: np.ndarray, p: float, q: float, m: float) -> np.ndarray:
     return m * (1 - exponent) / (1 + (q / p) * exponent)
 
 
+def _parse_dates(values: pd.Series) -> pd.Series:
+    """Dates from a period column: one inferred format for the whole column (fast), mixed formats only for leftovers.
+
+    Numbers are never read as dates (pandas would take 1, 2, 3 as nanoseconds after 1970).
+    """
+    if pd.api.types.is_datetime64_any_dtype(values):
+        return values
+    if pd.api.types.is_numeric_dtype(values):
+        return pd.Series(pd.NaT, index=values.index, dtype="datetime64[ns]")
+    with warnings_module.catch_warnings():
+        warnings_module.simplefilter("ignore", UserWarning)
+        dates = pd.to_datetime(values, errors="coerce")
+        leftovers = dates.isna() & values.notna()
+        if leftovers.any() and leftovers.sum() < len(values):
+            dates = dates.copy()
+            dates[leftovers] = pd.to_datetime(values[leftovers], errors="coerce", format="mixed")
+        elif leftovers.all():
+            dates = pd.to_datetime(values, errors="coerce", format="mixed")
+    return dates
+
+
 def prepare_adoption_series(
-    frame: pd.DataFrame, period_column: str, adopters_column: str
+    frame: pd.DataFrame,
+    period_column: str,
+    adopters_column: str,
+    *,
+    sum_rows_per_period: bool = False,
+    group_dates_by: str | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Validate and order an adoption history; returns the series and honest warnings."""
+    """Validate and order an adoption history; returns the series and honest warnings.
+
+    Large files (millions of rows: one row per store, region, channel, day or adopter) are reduced to one row per
+    period before fitting, vectorized and only when asked: ``sum_rows_per_period`` sums rows that share a period
+    label, ``group_dates_by`` ("week", "month", "quarter" or "year") first turns dates into calendar periods, and
+    ``adopters_column=COUNT_ROWS`` counts rows instead of reading a count column. What was aggregated is recorded
+    in ``series.attrs["aggregation"]`` (for exports) and in a warning. Without these options the behaviour is
+    unchanged: repeated period labels are refused.
+    """
     warnings: list[str] = []
-    for column in (period_column, adopters_column):
+    count_rows = adopters_column == COUNT_ROWS
+    for column in (period_column, *(() if count_rows else (adopters_column,))):
         if column not in frame.columns:
             raise DataProblem(f"The column “{column}” is not in the file.")
     if period_column == adopters_column:
         raise DataProblem("The period and adopters columns must be different.")
-    series = frame[[period_column, adopters_column]].copy()
-    series.columns = ["period", "new_adopters"]
-    if series["period"].astype(str).str.strip().duplicated().any():
+    if group_dates_by is not None and group_dates_by not in DATE_GROUPINGS:
+        raise DataProblem("Group dates by week, month, quarter or year.")
+    input_rows = len(frame)
+    period = frame[period_column]
+    if group_dates_by is not None:
+        dates = _parse_dates(period)
+        unparsed = int(dates.isna().sum())
+        if unparsed == len(dates):
+            raise DataProblem(
+                f"The period column “{period_column}” does not contain dates, so it cannot be grouped by "
+                f"{group_dates_by}. Choose 'as in the file' or a date column."
+            )
+        if unparsed:
+            warnings.append(f"{unparsed:,} rows whose period is not a date were dropped before grouping.")
+        period = dates.dt.to_period(DATE_GROUPINGS[group_dates_by])
+    adopters = pd.Series(1, index=frame.index, dtype="int64") if count_rows else frame[adopters_column]
+    series = pd.DataFrame({"period": period, "new_adopters": adopters})
+    if group_dates_by is not None:
+        series = series[series["period"].notna()]
+    aggregate = sum_rows_per_period or count_rows or group_dates_by is not None
+    if not aggregate and series["period"].astype(str).str.strip().duplicated().any():
         raise DataProblem(
-            "Some period labels appear more than once. Each period must be one row; aggregate duplicates first."
+            "Some period labels appear more than once. Each period must be one row; aggregate duplicates first, "
+            "or tick “Sum rows that share a period” if the rows are stores, regions, channels or transactions."
         )
     series["new_adopters"] = pd.to_numeric(series["new_adopters"], errors="coerce")
     dropped = int(series["new_adopters"].isna().sum())
@@ -131,10 +189,39 @@ def prepare_adoption_series(
             f"{dropped:,} rows without a numeric adoption count were dropped — if these were real periods with "
             "missing data, the model's equal-period assumption is violated."
         )
-    if len(series) < MINIMUM_FIT_PERIODS:
-        raise DataProblem(f"At least {MINIMUM_FIT_PERIODS} periods with numeric adoption counts are required.")
     if (series["new_adopters"] < 0).any():
         raise DataProblem("Adoption counts cannot be negative. Use first-time adopters (or sales) per period.")
+    aggregation = None
+    if aggregate:
+        if group_dates_by is not None:
+            # Calendar periods sort chronologically; empty periods inside the range count as zero adopters.
+            totals = series.groupby("period", sort=True)["new_adopters"].sum()
+            if len(totals):
+                full_range = pd.period_range(totals.index.min(), totals.index.max(), freq=totals.index.freq)
+                limits.check_history_periods(len(full_range))
+                filled = len(full_range) - len(totals)
+                totals = totals.reindex(full_range, fill_value=0)
+                if filled:
+                    warnings.append(f"{filled:,} {group_dates_by}s without any rows were counted as zero adopters.")
+            series = pd.DataFrame({"period": totals.index.astype(str), "new_adopters": totals.to_numpy()})
+        else:
+            labels = series["period"].astype(str).str.strip()
+            totals = series.groupby(labels, sort=False)["new_adopters"].sum()
+            series = pd.DataFrame({"period": totals.index.to_numpy(), "new_adopters": totals.to_numpy()})
+        how = "counted" if count_rows else "summed"
+        unit = f"{group_dates_by}s" if group_dates_by else "periods"
+        warnings.append(
+            f"{input_rows:,} rows were {how} into {len(series):,} {unit} before fitting (one row per period); "
+            "the exports record this."
+        )
+        aggregation = {
+            "input_rows": input_rows,
+            "periods_after_aggregation": len(series),
+            "adopters": "row count" if count_rows else f"sum of {adopters_column}",
+            "date_grouping": group_dates_by or "none",
+        }
+    if len(series) < MINIMUM_FIT_PERIODS:
+        raise DataProblem(f"At least {MINIMUM_FIT_PERIODS} periods with numeric adoption counts are required.")
     if float(series["new_adopters"].sum()) <= 0:
         raise DataProblem("The adoption column contains no positive values.")
     order = pd.to_numeric(series["period"], errors="coerce")
@@ -147,8 +234,9 @@ def prepare_adoption_series(
                 "irregular spacing bends the fitted curve."
             )
     series = series.reset_index(drop=True)
-    if len(series) > MAX_PERIODS:
-        raise DataProblem(f"This release supports up to {MAX_PERIODS} periods of history.")
+    limits.check_history_periods(len(series))
+    if aggregation is not None:
+        series.attrs["aggregation"] = aggregation
     return series, warnings
 
 

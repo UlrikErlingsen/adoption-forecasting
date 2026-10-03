@@ -28,4 +28,4 @@ At least 5 periods are required; a trustworthy fit usually needs the history to 
 
 ## Limits
 
-Up to 400 periods per history; files up to 200 MB (JSON 50 MB). These are responsiveness bounds — real adoption histories are dozens of rows, not thousands.
+None when the app runs on your own computer: file size, rows, cells and periods of history are limited only by memory, and running out of memory is a plain message. Large detailed files (one row per store, region, day or adopter) are reduced to one row per period on the fit page — sum rows that share a period, group dates into week, month, quarter or year, or count rows as adopters — and the JSON export records what was aggregated. A public demo (`SIGNAL_PUBLIC=1`) caps uploads at 50 MB, 1,000,000 rows, 10,000,000 cells and 400 periods of history (`src/adoptsignal/limits.py`).

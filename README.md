@@ -61,7 +61,9 @@ Pages 1–2 need no data. For fitting on page 3, Adopt Signal reads `.csv`, `.xl
 | Q2 2020  | 3139       |
 | Q3 2020  | 4701       |
 
-A period label column and a numeric column of **first-time adopters** (unit sales work for durables bought once). At least 5 periods; the fit becomes trustworthy only after the sales peak. Duplicate period labels are rejected; rows without a numeric count are dropped with a warning, and unequally spaced numeric periods are flagged. Up to 400 periods per history; files up to 200 MB (JSON 50 MB). See [the data guide](docs/data_guide.md).
+A period label column and a numeric column of **first-time adopters** (unit sales work for durables bought once). At least 5 periods; the fit becomes trustworthy only after the sales peak. Duplicate period labels are rejected unless you choose to sum them; rows without a numeric count are dropped with a warning, and unequally spaced numeric periods are flagged. See [the data guide](docs/data_guide.md).
+
+**Data limits.** On your own computer (standalone, a local Signal Hub or an internal company deployment) Adopt Signal has no built-in limit on file size, rows, cells or periods of history: memory is the limit, and running out of memory is reported as a plain message instead of a crash. Streamlit's upload cap is 10,000 MB. CSV is read by pandas' C parser (measured: 5 million rows, 115 MB, in about 1–2 seconds and 0.55 GB of memory; a 343 MB JSON file with 5 million records in about 5 seconds and 2.5 GB). Detailed files — one row per store, region, day or adopter — are reduced to one row per period before the fit, only when you ask: *Sum rows that share a period*, *Group dates into* week, month, quarter or year (empty calendar periods count as zero), or *count rows* as adopters. The fit page says what was aggregated and the JSON export records it (`input_aggregation`). The fit chart draws at most 5,000 periods (with a note); the fit and the export use every period. A public demo (`SIGNAL_PUBLIC=1`, set by Signal Hub's public image) caps uploads at 50 MB, 1,000,000 rows, 10,000,000 cells, 400 MB of expanded workbook and 400 periods of history, and says so when a cap is hit; all caps live in [`src/adoptsignal/limits.py`](src/adoptsignal/limits.py).
 
 ## Analysis contract
 
@@ -119,7 +121,7 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-Adopt Signal prefers local port 8501; on macOS the launcher falls back to the next free port. The macOS launcher accepts `ADOPTSIGNAL_PORT`, `ADOPTSIGNAL_MAX_UPLOAD_MB` and `ADOPTSIGNAL_NO_BROWSER`; `ADOPTSIGNAL_MAX_UPLOAD_MB` also sets the app's own file limit, and `ADOPTSIGNAL_DEBUG=1` reveals unexpected technical error details.
+Adopt Signal prefers local port 8501; on macOS the launcher falls back to the next free port. Both launchers accept `ADOPTSIGNAL_MAX_UPLOAD_MB` (Streamlit's upload cap in MB, default 10000, passed to `--server.maxUploadSize`); the macOS launcher also accepts `ADOPTSIGNAL_PORT` and `ADOPTSIGNAL_NO_BROWSER`, and `ADOPTSIGNAL_DEBUG=1` reveals unexpected technical error details.
 
 ### Docker
 
@@ -128,7 +130,7 @@ docker build -t adoptsignal .
 docker run --rm -p 8501:8501 adoptsignal
 ```
 
-Then open http://127.0.0.1:8501. The container runs as a non-root user and includes a health check.
+Then open http://127.0.0.1:8501. The container runs as a non-root user and includes a health check. The upload cap is set with `STREAMLIT_SERVER_MAX_UPLOAD_SIZE=10000` in the image (override with `docker run -e STREAMLIT_SERVER_MAX_UPLOAD_SIZE=<MB> …`).
 
 ## Privacy
 

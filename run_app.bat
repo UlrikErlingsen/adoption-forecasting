@@ -12,4 +12,5 @@ if not exist .venv\.adoptsignal-requirements-%REQ_HASH% (
   del /q .venv\.adoptsignal-requirements-* .venv\.adoptsignal-ready 2>nul
   type nul > .venv\.adoptsignal-requirements-%REQ_HASH%
 )
-python -m streamlit run app.py --server.headless=false --server.address=127.0.0.1 --server.maxUploadSize=200 --server.fileWatcherType=none --browser.gatherUsageStats=false
+if not defined ADOPTSIGNAL_MAX_UPLOAD_MB set ADOPTSIGNAL_MAX_UPLOAD_MB=10000
+python -m streamlit run app.py --server.headless=false --server.address=127.0.0.1 --server.maxUploadSize=%ADOPTSIGNAL_MAX_UPLOAD_MB% --server.fileWatcherType=none --browser.gatherUsageStats=false
